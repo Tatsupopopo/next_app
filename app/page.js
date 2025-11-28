@@ -3,46 +3,76 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import Script from "next/script";
 import Layout from "./components/layout";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
-import "./components/fire";
+
 import { useState, useEffect } from "react";
 
-const db = getFirestore(); // 実行ファイルを介してFirebaseプロジェクトを取得する
+import { db, auth } from "./components/fire";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { collection, getDocs } from "firebase/firestore";
+
+const provider = new GoogleAuthProvider();
 
 export default function Home() {
   const [data, setData] = useState([]);
   const [message, setMessage] = useState("wait...");
 
+  // 1) 認証状態の変化を監視
   useEffect(() => {
-    const fetchData = async () => {
-      // asyncで{}内の処理を非同期通信で行う
-      const snapshot = await getDocs(collection(db, "mydata")); // awaitで処理順番を調整. collectionでdb内のmydataコレクションを取得. getDocsですべてのドキュメントを配列で取得
-      const mydata = [];
-      snapshot.forEach((document) => {
-        const doc = document.data(); // snapshot内の1つ1つのdocumentに対して、内部のデータを取得
-        mydata.push(
-          <tr key={document.id}>
-            <td>
-              <a href={"/del?id=" + document.id}>{document.id}</a>
-            </td>
-            <td>{doc.name}</td>
-            <td>{doc.mail}</td>
-            <td>{doc.age}</td>
-          </tr>
-        );
-      });
-      setData(mydata);
-      setMessage("Firebase data");
-    };
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setMessage("logined: " + user.displayName);
+        loadData(); // ログイン後にデータ読み込み
+      } else {
+        setMessage("not logined");
+      }
+    });
 
-    fetchData();
+    return () => unsub();
   }, []);
+
+  // 2) Google ログイン実行
+  const login = () => {
+    signInWithPopup(auth, provider).catch((err) => {
+      setMessage("ERROR: " + err.message);
+    });
+  };
+
+  // 3) Firestore データ読み込み
+  const loadData = async () => {
+    const mydata = [];
+    const snapshot = await getDocs(collection(db, "mydata"));
+
+    snapshot.forEach((doc) => {
+      const d = doc.data();
+      mydata.push(
+        <tr key={doc.id}>
+          <td>
+            <a href={"/del?id=" + doc.id}>{doc.id}</a>
+          </td>
+          <td>{d.name}</td>
+          <td>{d.mail}</td>
+          <td>{d.age}</td>
+        </tr>
+      );
+    });
+
+    setData(mydata);
+  };
 
   return (
     <div>
       <Layout header="Next.js" title="Top Page">
         <div className="alert alert-primary text-center">
           <h5 className="mb-4">{message}</h5>
+
+          <button className="btn btn-primary mb-3" onClick={login}>
+            Google Login
+          </button>
+
           <table className="table bg-white text-left">
             <thead>
               <tr>
@@ -56,6 +86,7 @@ export default function Home() {
           </table>
         </div>
       </Layout>
+
       <Script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
         strategy="afterInteractive"
