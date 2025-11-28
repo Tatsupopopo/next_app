@@ -3,45 +3,56 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import Script from "next/script";
 import Layout from "./components/layout";
-import useSWR from "swr";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+import "./components/fire";
+import { useState, useEffect } from "react";
+
+const db = getFirestore(); // 実行ファイルを介してFirebaseプロジェクトを取得する
 
 export default function Home() {
-  // SWR を使用する際は fetcher 関数を定義すること.
-  const fetcher = (url) => fetch(url).then((res) => res.json());
-  const { data } = useSWR("/data.json", fetcher);
+  const [data, setData] = useState([]);
+  const [message, setMessage] = useState("wait...");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // asyncで{}内の処理を非同期通信で行う
+      const snapshot = await getDocs(collection(db, "mydata")); // awaitで処理順番を調整. collectionでdb内のmydataコレクションを取得. getDocsですべてのドキュメントを配列で取得
+      const mydata = [];
+      snapshot.forEach((document) => {
+        const doc = document.data(); // snapshot内の1つ1つのdocumentに対して、内部のデータを取得
+        mydata.push(
+          <tr key={document.id}>
+            <td>
+              <a href={"/del?id=" + document.id}>{document.id}</a>
+            </td>
+            <td>{doc.name}</td>
+            <td>{doc.mail}</td>
+            <td>{doc.age}</td>
+          </tr>
+        );
+      });
+      setData(mydata);
+      setMessage("Firebase data");
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div>
       <Layout header="Next.js" title="Top Page">
         <div className="alert alert-primary text-center">
-          <h5 className="mb-4">
-            {data != undefined ? data.message : "error..."}
-          </h5>
-          <table className="table bg-white">
-            <thead className="table-dark">
+          <h5 className="mb-4">{message}</h5>
+          <table className="table bg-white text-left">
+            <thead>
               <tr>
+                <th>ID</th>
                 <th>Name</th>
                 <th>Mail</th>
                 <th>Age</th>
               </tr>
             </thead>
-            <tbody>
-              {data != undefined ? (
-                data.data.map((value, key) => (
-                  <tr key={key}>
-                    <th>{value.name}</th>
-                    <td>{value.mail}</td>
-                    <td>{value.age}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <th></th>
-                  <td>No data.</td>
-                  <td></td>
-                </tr>
-              )}
-            </tbody>
+            <tbody>{data}</tbody>
           </table>
         </div>
       </Layout>
